@@ -2,9 +2,10 @@
 #include "image.h"
 #include "vec.h"
 #include "types.h"
+#include "noise.h"
 
 const float PI2 = 1.57079632679f;
-const float PI = 3.14159265359f;
+const float PI  = 3.14159265359f;
 
 vec3 c_eye = vec3(0.0f, 4.0f, 0.0f);
 vec3 c_fwd = vec3(0.0f, -1.0f, 0.0f);
@@ -12,11 +13,11 @@ vec3 c_rht = vec3(1.0f, 0.0f, 0.0f);
 vec3 c_up  = vec3(0.0f, 0.0f, 1.0f);
 
 vec3 c_sky_color = vec3(0.0f);
-float scale_x = 0.5f;
-float scale_y = 0.5f;
-float hmap_height = 0.8f;
-int hmap_res_x = 32;
-int hmap_res_y = 32;
+float scale_x = 0.8f;
+float scale_y = 0.8f;
+float hmap_height = 0.2f;
+int hmap_res_x = 400;
+int hmap_res_y = 400;
 
 vec3 toSpherical(float theta, float phi, float rho)
 {
@@ -32,42 +33,62 @@ void setViewpoint(float theta, float phi, float rho, const vec3 &center)
 	c_up = normalize(cross(c_fwd, c_rht));
 }
 
+// Projects the point (u, v) from the image plane onto
+// the y = 0 plane
 vec3 project(float u, float v)
 {
 	// generate a ray orthographic to the image plane
 	vec3 ro = c_eye + c_rht * u / scale_x + c_up * v / scale_y;
 	vec3 rd = c_fwd;
 
-	// intersect with [0, 1] x [0, 1] xz-plane
+	// intersect with y = 0 plane
 	float t = -ro.y / rd.y;
 	return ro + rd * t;
 }
 
-vec2 unproject(const vec3 &world)
+// Projects the column of height h onto the image plane,
+// with start-coordinates (u0, v0). Returns the v component.
+float unproject(float u0, float v0, float h)
 {
-	return vec2(0.0f, 0.0f);
+	// Kinda sketchy math here
+	float cost = -c_fwd.y / length(c_fwd);
+	float dx = h * cost;
+	float da = sqrt(h * h - dx * dx);
+	return v0 + da * scale_y;
 }
 
 // x and y in range [0, 1]
 float sampleHeightmap(float x, float y)
 {
-	int xi = floor(0.25f * x * hmap_res_x);
-	int yi = floor(0.25f * y * hmap_res_y);
+	float scale = 12.0f;
+	float xf = floor(scale * x * hmap_res_x) / hmap_res_x;
+	float yf = floor(scale * y * hmap_res_y) / hmap_res_y;
+	float s = fBm(xf, yf, 2.33f, 0.43f, 5, 16123);
 
-	// float heights[6][6] = {
-	// 	0.02f, 0.02f, 0.02f, 0.02f, 0.2f, 0.2f,
-	// 	0.02f, 0.02f, 0.2f, 0.2f, 0.2f, 0.2f,
-	// 	0.02f, 0.02f, 1.0f, 0.2f, 0.2f, 0.2f,
-	// 	0.02f, 0.02f, 0.2f, 0.2f, 0.2f, 0.2f,
-	// 	0.02f, 0.02f, 0.2f, 0.2f, 0.2f, 0.2f,
-	// 	0.02f, 0.02f, 0.2f, 0.2f, 0.2f, 0.2f,
-	// };
+	return s * 0.5f + 0.5f;
 
-	// return heights[xi][yi];
+	// float sx = xf - scale * 0.5f;
+	// float sy = yf - scale * 0.5f; 
+	// float r2 = sx * sx + sy * sy;
+	// float h = clamp((s * 0.5f + 0.5f) * exp(-r2 / 14.0f) - r2 * 0.11f + s * sinf(r2 * 0.2f), 0.0f, 1.0f);
+	// return h;
 
-	float a = 2.0f * (xi / float(hmap_res_x)) - 1.0f;
-	float b = 2.0f * (yi / float(hmap_res_y)) - 1.0f;
-	return exp(-(a * a + b * b));
+	// int xi = floor(x * hmap_res_x);
+	// int yi = floor(y * hmap_res_y);
+
+	// float a = 2.0f * (xi / float(hmap_res_x)) - 1.0f;
+	// float b = 2.0f * (yi / float(hmap_res_y)) - 1.0f;
+	// return exp(-(a * a + b * b));
+}
+
+void drawLine(Image *image, int x, int y0, int y1, const vec3 &color)
+{
+	y0 = max(0, y0);
+	y1 = min(image->getHeight() - 1, y1);
+	for (int y = y0; y <= y1; ++y)
+	{
+		image->setPixel(x, y, color);
+	}
 }
 
 void fillColumn(Image *image, int x, int y, int width, int height)
@@ -77,50 +98,25 @@ void fillColumn(Image *image, int x, int y, int width, int height)
 
 	// project image plane position onto xz-plane
 	vec3 p = project(u, v);
-	if (p.x < 0.0f || p.x > 4.0f ||
-	    p.z < 0.0f || p.z > 4.0f)
+	if (p.x < -1.0f || p.x > 1.0f ||
+	    p.z < -1.0f || p.z > 1.0f)
 	{
 	    image->setPixel(x, y, c_sky_color);
 		return;
 	}
 
-	float h = sampleHeightmap(p.x, p.z) * hmap_height;
+	// transform to [0, 1] range
+	float sample_x = (p.x * 0.5f + 0.5f);
+	float sample_y = (p.z * 0.5f + 0.5f);
+	float h = sampleHeightmap(sample_x, sample_y) * hmap_height;
 
-	// project top of height sample (in world coordinates)
-	// back to the uv-plane
-	// (bad maths incoming)
-	float cost = -c_fwd.y / length(c_fwd);
-	float dx = h * cost;
-	float da = sqrt(h * h - dx * dx);
-	float v_end = v + da * scale_y;
-	int y_end = int((v_end + 1.0f) * 0.5f * height);
+	// transform column back to image plane coords
+	float v1 = unproject(u, v, h);
 
-	for (int yp = y; yp < y_end; ++yp)
-	{
-		if (yp >= 0 && yp < height)
-			image->setPixel(x, yp, min(vec3(h), vec3(1.0f)));
-	}
-}
+	// the top of the column in pixel coords
+	int y_end = int((v1 + 1.0f) * 0.5f * height);
 
-vec3 computeFragment(float u, float v)
-{
-	// project image plane position onto xz-plane
-	vec3 p = project(u, v);
-	if (p.x < 0.0f || p.x > 1.0f ||
-	    p.z < 0.0f || p.z > 1.0f)
-	    return c_sky_color;
-
-	float h = sampleHeightmap(p.x, p.z) * hmap_height;
-
-	// project top of height sample (in world coordinates)
-	// back to the uv-plane
-	// (bad maths incoming)
-	float cost = -c_fwd.y / length(c_fwd);
-	float dx = h * cost;
-	float da = sqrt(h * h - dx * dx);
-	float vproj = v + da * scale_y;
-
-	return vec3(h);
+	drawLine(image, x, y, y_end, min(vec3(h) * 1.0f / hmap_height, vec3(1.0f)));
 }
 
 void render(Image *image)
@@ -142,10 +138,13 @@ int main(int argc, char **argv)
 	uint32 height = 500;
 	Image image(width, height);
 
-	setViewpoint(-PI/4.0f, -PI/6.0f, 1.0f, vec3(2.4f, 1.4f, -1.0f));
+	scale_x = atof(argv[1]);
+	scale_y = atof(argv[2]);
+
+	setViewpoint(-PI/4.0f, -PI/6.0f, 1.0f, vec3(3.0f, 3.0f, -3.0f));
 	render(&image);
 
-	image.saveToFile("result.png");
+	image.saveToFile("img/result.png");
 	std::cout << "Result saved as result.png" << std::endl;
 
 	return 0;

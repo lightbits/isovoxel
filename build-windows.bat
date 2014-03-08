@@ -17,6 +17,6 @@ del /Q obj\*
 :: %COMPILER% %COMPILE_OPTIONS% raytrace.cpp imageio.cpp stb_image.c geometry.cpp camera.cpp noise.cpp
 
 :: For pathtrace.exe
-%COMPILER% %COMPILE_OPTIONS% isovoxel.cpp image.cpp stb_image.c
+%COMPILER% %COMPILE_OPTIONS% isovoxel.cpp image.cpp stb_image.c noise.cpp
 
 del /Q obj\*
