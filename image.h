@@ -6,6 +6,7 @@
 class Image
 {
 public:
+	Image();
 	Image(uint32 width, uint32 height);
 	~Image();
 
@@ -13,6 +14,7 @@ public:
 	                  float white = 20.0f, 
 	                  float gamma = 1.0f / 2.2f);
 	
+	bool loadFromFile(const char *filename);
 	bool saveToFile(const char *filename) const;
 	vec3 getPixel(uint32 x, uint32 y) const;
 	void setPixel(uint32 x, uint32 y, const vec3 &pixel);
@@ -20,6 +22,10 @@ public:
 	uint32 getWidth() const { return width; }
 	uint32 getHeight() const { return height; }
 private:
+	// Disable copying
+	Image &operator=(const Image &rhs);
+	Image(const Image &copy);
+
 	uint32 width;
 	uint32 height;
 	vec3 *pixels;

@@ -3,6 +3,7 @@
 
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #include "stb_image_write.h"
+#include "stb_image_read.h"
 
 float toLuminance(float R, float G, float B) 
 {
@@ -37,9 +38,15 @@ Image::Image(uint32 width_, uint32 height_) :
 		pixels[i] = vec3(0.0f, 0.0f, 0.0f);
 }
 
+Image::Image() : width(0), height(0), pixels(nullptr)
+{
+
+}
+
 Image::~Image()
 {
-	delete[] pixels;
+	if (pixels != nullptr)
+		delete[] pixels;
 }
 
 /* 
@@ -84,6 +91,38 @@ void Image::applyTonemap(float exposure, float white, float gamma)
 			setPixel(x, y, vec3(R, G, B));
 		}
 	}
+}
+
+bool Image::loadFromFile(const char *filename)
+{
+	int w, h, n;
+	uint8 *pbuffer = stbi_load(filename, 
+	                           &w,
+	                           &h,
+	                           &n, // num components per pixel
+	                           4); // force 4 components per pixels
+	if (pbuffer == NULL)
+		return false;
+
+	width = w; 
+	height = h;
+
+	if (pixels != nullptr)
+		delete[] pixels;
+	pixels = new vec3[width * height];
+
+	// convert to floating point and set colors
+	int offset = 0;
+	for (int i = 0; i < width * height; ++i)
+	{
+		// ignoring alpha
+		pixels[i] = vec3(float(pbuffer[offset + 0]) / 255.0f,
+		                 float(pbuffer[offset + 1]) / 255.0f,
+		                 float(pbuffer[offset + 2]) / 255.0f);
+		offset += 4;
+	}
+	stbi_image_free(pbuffer);
+	return true;
 }
 
 bool Image::saveToFile(const char *filename) const
