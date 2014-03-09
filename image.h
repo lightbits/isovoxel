@@ -16,6 +16,7 @@ public:
 	bool saveToFile(const char *filename) const;
 	vec3 getPixel(uint32 x, uint32 y) const;
 	void setPixel(uint32 x, uint32 y, const vec3 &pixel);
+	void setLine(uint32 x, uint32 y0, uint32 y1, const vec3 &color);
 	uint32 getWidth() const { return width; }
 	uint32 getHeight() const { return height; }
 private:

@@ -81,16 +81,6 @@ float sampleHeightmap(float x, float y)
 	// return exp(-(a * a + b * b));
 }
 
-void drawLine(Image *image, int x, int y0, int y1, const vec3 &color)
-{
-	y0 = max(0, y0);
-	y1 = min(image->getHeight() - 1, y1);
-	for (int y = y0; y <= y1; ++y)
-	{
-		image->setPixel(x, y, color);
-	}
-}
-
 void fillColumn(Image *image, int x, int y, int width, int height)
 {
 	float u = (x / float(width)) * 2.0f - 1.0f;
@@ -116,7 +106,10 @@ void fillColumn(Image *image, int x, int y, int width, int height)
 	// the top of the column in pixel coords
 	int y_end = int((v1 + 1.0f) * 0.5f * height);
 
-	drawLine(image, x, y, y_end, min(vec3(h) * 1.0f / hmap_height, vec3(1.0f)));
+	// convert height to color and draw the height column
+	vec3 color = vec3(h) * 1.0f / hmap_height;
+	color = min(color, vec3(1.0f));
+	image->setLine(x, y, y_end, color);
 }
 
 void render(Image *image)

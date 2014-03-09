@@ -126,3 +126,11 @@ void Image::setPixel(uint32 x, uint32 y, const vec3 &pixel)
 	// (0, 0) is the bottom-left, and (width, height) is top-right
 	pixels[(height - 1 - y) * width + x] = pixel;
 }
+
+void Image::setLine(uint32 x, uint32 y0, uint32 y1, const vec3 &color)
+{
+	y0 = max(y0, 0);
+	y1 = min(y1, height - 1);
+	for (int y = y0; y <= y1; ++y)
+		setPixel(x, y, color);
+}
